@@ -2,6 +2,7 @@
 
 export default class PolarCanvasController {
     constructor(containerId, coordsDisplayId) {
+        this.containerId = containerId; // Guardar ID del contenedor
         // Estado del Plano
         this.center = { x: 0, y: 0 }; // Coordenadas del plano (0,0) relativas al stage
         this.scale = 50; // Píxeles por unidad de radio. Define el zoom inicial.
@@ -9,10 +10,11 @@ export default class PolarCanvasController {
         this.maxScale = 1000; // Escala máxima para r=0.001
 
         // Inicializar Stage y Capas (Layers)
+        const containerElement = document.getElementById(containerId);
         this.stage = new Konva.Stage({
             container: containerId,
-            width: document.getElementById(containerId).offsetWidth,
-            height: document.getElementById(containerId).offsetHeight,
+            width: containerElement.offsetWidth,
+            height: containerElement.offsetHeight,
         });
 
         // Capas para la optimización del rendimiento
@@ -50,13 +52,17 @@ export default class PolarCanvasController {
         this.center = { x: this.stage.width() / 2, y: this.stage.height() / 2 };
         
         // Ajustar el evento de redimensionamiento de la ventana
-        window.addEventListener('resize', this.handleResize.bind(this));
+        this.resizeHandler = this.handleResize.bind(this);
+        window.addEventListener('resize', this.resizeHandler);
     }
     
     handleResize() {
+        const container = document.getElementById(this.containerId);
+        if (!container) return;
+
         // Ajustar el tamaño del Stage al contenedor
-        this.stage.width(document.getElementById('canvas-container').offsetWidth);
-        this.stage.height(document.getElementById('canvas-container').offsetHeight);
+        this.stage.width(container.offsetWidth);
+        this.stage.height(container.offsetHeight);
         
         // Recalcular el centro y actualizar las capas
         this.center = { x: this.stage.width() / 2, y: this.stage.height() / 2 };
@@ -145,19 +151,28 @@ export default class PolarCanvasController {
         
         this.stage.on('mousedown touchstart', (e) => {
             isDragging = true;
-            // Coordenadas del ratón relativas a la ventana/pantalla
-            lastPos = { x: e.evt.clientX, y: e.evt.clientY };
+            const pos = this.stage.getPointerPosition();
+            if (pos) {
+                lastPos = pos;
+            }
         });
 
         this.stage.on('mousemove touchmove', (e) => {
+            // Prevent scrolling on touch devices while dragging on the canvas
+            if (e.type === 'touchmove') {
+                e.evt.preventDefault(); 
+            }
+
             // Mostrar coordenadas del puntero
-            this.updateCoordsDisplay(e.evt.clientX, e.evt.clientY);
+            this.updateCoordsDisplay();
 
             if (!isDragging) return;
 
-            const newPos = { x: e.evt.clientX, y: e.evt.clientY };
-            const dx = newPos.x - lastPos.x;
-            const dy = newPos.y - lastPos.y;
+            const pos = this.stage.getPointerPosition();
+            if (!pos) return;
+
+            const dx = pos.x - lastPos.x;
+            const dy = pos.y - lastPos.y;
 
             // Mover las capas
             this.gridLayer.x(this.gridLayer.x() + dx);
@@ -168,7 +183,7 @@ export default class PolarCanvasController {
             // Redibujar
             this.stage.batchDraw(); 
             
-            lastPos = newPos;
+            lastPos = pos;
         });
 
         this.stage.on('mouseup touchend', () => {
@@ -201,7 +216,7 @@ export default class PolarCanvasController {
     // --- CONVERSIÓN DE COORDENADAS Y DISPLAY ---
 
     // Convierte coordenadas de Pantalla (Píxeles) a Coordenadas Polares (r, theta)
-    canvasToPolar(clientX, clientY) {
+    canvasToPolar() {
         // 1. Obtener la posición del puntero relativa al Stage
         const pointerPos = this.stage.getPointerPosition();
         if (!pointerPos) return { r: 0, theta: 0 };
@@ -228,8 +243,8 @@ export default class PolarCanvasController {
         return { r: r, theta: thetaDeg };
     }
 
-    updateCoordsDisplay(clientX, clientY) {
-        const { r, theta } = this.canvasToPolar(clientX, clientY);
+    updateCoordsDisplay() {
+        const { r, theta } = this.canvasToPolar();
         this.coordsDisplay.innerHTML = `r: ${r.toFixed(3)}, &theta;: ${theta.toFixed(2)}°`;
     }
 }

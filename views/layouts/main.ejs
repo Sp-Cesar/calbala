@@ -6,6 +6,9 @@
     <title><%= pageTitle %></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Oswald:wght@200..700&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
 </head>
 <body class="min-h-screen antialiased">
     <%- body %>
@@ -15,8 +18,14 @@
         import PolarCanvasController from '/js/PolarCanvasController.js';
         
         document.addEventListener('DOMContentLoaded', () => {
-            if (document.getElementById('canvas-container')) {
-                new PolarCanvasController('canvas-container', 'coords-display');
+            // Inicializar Gráfico 1: Trilateración
+            if (document.getElementById('polar-trilateration')) {
+                window.trilaterationGraph = new PolarCanvasController('polar-trilateration', 'coords-trilateration');
+            }
+
+            // Inicializar Gráfico 2: Vectores
+            if (document.getElementById('polar-vectors')) {
+                window.vectorsGraph = new PolarCanvasController('polar-vectors', 'coords-vectors');
             }
         });
     </script> 
