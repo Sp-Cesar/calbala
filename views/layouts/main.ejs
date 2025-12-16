@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= pageTitle %></title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="min-h-screen antialiased">
+    <%- body %>
+
+    <script src="https://unpkg.com/konva@9.3.5/konva.min.js"></script>
+    <script type="module">
+        import PolarCanvasController from '/js/PolarCanvasController.js';
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            if (document.getElementById('canvas-container')) {
+                new PolarCanvasController('canvas-container', 'coords-display');
+            }
+        });
+    </script> 
+</body>
+</html>
