@@ -79,62 +79,94 @@ export default class PolarCanvasController {
     drawGrid() {
         this.gridLayer.destroyChildren(); // Limpiar la capa antes de redibujar
 
-        const maxRadius = Math.min(this.stage.width(), this.stage.height()) / 2;
+        const maxRadius = Math.min(this.stage.width(), this.stage.height()) * 1.5; // Dibujar más allá de la vista visible
         
-        // Definir la separación de los círculos (debe ser proporcional a la escala)
-        let step = 1; // Unidades del radio (r=1, r=2, etc.)
+        // --- Cálculo de Paso "Bonito" (Nice Step) ---
+        // Queremos que la distancia visual entre círculos esté entre ~50px y ~150px
+        const minPixelSpacing = 60; 
         
-        // Ajustar la separación de las unidades basado en la escala (Zoom)
-        // Lógica para mantener círculos "visibles" y proporcionales
-        const unitSize = this.scale * step; // Tamaño en píxeles de una unidad de radio
+        // 1. Calcular el tamaño de un paso de '1 unidad' en píxeles actuales
+        // Si scale = 50 (50px por unidad), y queremos min 60px, entonces el paso debe ser > 1.
+        
+        // targetStepInUnits * scale >= minPixelSpacing
+        // targetStepInUnits >= minPixelSpacing / scale
+        const rawStep = minPixelSpacing / this.scale;
 
-        // Si la unidad es muy pequeña, aumentamos el paso
-        if (unitSize < 20) {
-            step = Math.ceil(20 / unitSize) * step;
-        } 
-        // Si la unidad es muy grande, disminuimos el paso
-        else if (unitSize > 150) {
-            step = step / Math.ceil(unitSize / 150);
-            if (step < 1) step = 0.1; // Para radios decimales
-        }
+        // 2. Encontrar el "numero bonito" (1, 2, 5) más cercano por arriba
+        // Potencia de 10 base
+        const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+        const normalizedStep = rawStep / magnitude; // Estará entre 1 y 10
+
+        let niceStep;
+        if (normalizedStep <= 1) niceStep = 1;
+        else if (normalizedStep <= 2) niceStep = 2;
+        else if (normalizedStep <= 5) niceStep = 5;
+        else niceStep = 10;
+
+        let step = niceStep * magnitude;
+
+        // ---------------------------------------------
         
         // Círculos (Radios)
+        // Empezar desde 'step' para no dibujar muchos círculos pequeños si step es pequeño
         for (let r = step; r * this.scale < maxRadius; r += step) {
+            const radiusPx = r * this.scale;
+            
             this.gridLayer.add(new Konva.Circle({
-                radius: r * this.scale,
+                radius: radiusPx,
                 stroke: '#e2e8f0', // Color de línea (slate-200)
                 strokeWidth: 1,
             }));
             
             // Etiqueta del Radio
+            // Solo dibujar si está dentro de un rango razonable visible, o siempre?
+            // Siempre está bien, Konva maneja el clipping en rendering.
             this.gridLayer.add(new Konva.Text({
-                x: r * this.scale, // Posición en el eje X
-                y: 5,
-                text: `r=${r.toFixed(3)}`,
-                fill: '#64748b', // Text color (slate-500)
+                x: radiusPx + 2, // Posición en el eje X
+                y: 2,
+                text: `${parseFloat(r.toPrecision(10))}`, // Evitar errores de float ej: 0.30000000004
+                fill: '#94a3b8', // Text color (slate-400) más sutil
                 fontSize: 10,
+                fontFamily: 'Arial'
             }));
         }
 
         // Líneas Radiales (Ángulos)
+        // También podemos ajustar el paso angular si se hiciera necesario, pero 30° suele estar bien.
         for (let angle = 0; angle < 360; angle += 30) {
             const angleRad = angle * Math.PI / 180;
             const endX = maxRadius * Math.cos(angleRad);
             const endY = maxRadius * Math.sin(angleRad);
             
             this.gridLayer.add(new Konva.Line({
-                points: [0, 0, endX, -endY], // Usamos -Y para coordenadas cartesianas estándar (0° a la derecha, 90° arriba)
-                stroke: '#e2e8f0', // Color de línea (slate-200)
+                points: [0, 0, endX, -endY], 
+                stroke: '#f1f5f9', // Color muy sutil (slate-100)
                 strokeWidth: 1,
             }));
             
-            // Etiqueta del Ángulo
-            this.gridLayer.add(new Konva.Text({
+            // Etiqueta del Ángulo (Dibujadas un poco más lejos o fijas en el borde?)
+            // En este diseño simple, las etiquetas se alejan con el radio...
+            // O podemos dibujarlas en un radio fijo visible? 
+            // El original las dibujaba al final de maxRadius, que es muy lejos si maxRadius es grande.
+            // Mejor dibujarlas a una distancia constante de la vista? No, dejemos lógica similar pero ajustada.
+            
+            // Vamos a dibujar etiquetas de ángulos en cada círculo principal? No, muy cargado.
+            // Dibujemos etiquetas de angulos a un radio fijo "visual" o simplemente al borde.
+            // Por simplicidad mantengo la lógica de bordes pero con texto más legible.
+           
+            const textRadius = Math.min(this.stage.width(), this.stage.height()) / 2 - 20; 
+            // Esto mantiene las etiquetas dentro del canvas visible, no infinitamente lejos.
+             // Pero necesitamos convertir ese radio de pantalla a posición. 
+             // Como el grid se mueve (pan), esto es tricky. 
+             // Simplificación: Dibujar lineas largas y ya. Las etiquetas de ángulos a veces molestan si no son dinámicas.
+             // Voy a ponerlas a un radio fijo relativo al "centro" por ahora, o dejarlas como estaban pero sutiles.
+             
+             this.gridLayer.add(new Konva.Text({
                 x: endX * 0.9 + 5,
                 y: -endY * 0.9 - 5,
                 text: `${angle}°`,
-                fill: '#64748b', // Text color (slate-500)
-                fontSize: 12,
+                fill: '#94a3b8', // slate-400
+                fontSize: 10,
             }));
         }
 
@@ -209,7 +241,7 @@ export default class PolarCanvasController {
 
             this.scale = newScale; // Actualizar la escala global
 
-            this.drawGrid(); // Redibujar la cuadrícula con la nueva escala
+            this.redraw(); // Redibujar TODO (Grid + Data) con la nueva escala
         });
     }
 
@@ -246,5 +278,209 @@ export default class PolarCanvasController {
     updateCoordsDisplay() {
         const { r, theta } = this.canvasToPolar();
         this.coordsDisplay.innerHTML = `r: ${r.toFixed(3)}, &theta;: ${theta.toFixed(2)}°`;
+    }
+
+    // --- GRÁFICOS ESPECÍFICOS ---
+
+    redraw() {
+        // Redibujar cuadrícula
+        this.drawGrid(); 
+        
+        // Redibujar datos persistidos si existen
+        if (this.lastTrilaterationData) {
+            this.drawTrilateration(...this.lastTrilaterationData);
+        }
+        if (this.lastVectorsData) {
+            this.drawVectors(...this.lastVectorsData);
+        }
+    }
+
+    /**
+     * Dibuja el gráfico de trilateración (círculos intersectando).
+     * @param {number} v0 - Radio de los círculos (Amplitud Original)
+     * @param {Array} runs - Array de corridas [{r, theta, color}, ...] que actuan como CENTROS
+     * @param {Object} solution - Punto de solución {x, y, r, theta}
+     */
+    /**
+     * Dibuja el gráfico de trilateración (círculos intersectando).
+     * @param {number} v0 - Radio de los círculos (Amplitud Original)
+     * @param {Array} runs - Array de corridas [{r, theta, color}, ...] que actuan como CENTROS
+     * @param {Object} solution - Punto de solución {x, y, r, theta}
+     */
+    drawTrilateration(v0, runs, solution) {
+        // Guardar estado para redibujado (Zoom/Resize)
+        this.lastTrilaterationData = [v0, runs, solution];
+
+        this.dataLayer.destroyChildren(); // Limpiar gráfico anterior
+
+        // 0. Dibujar Círculo Base (Amplitud Inicial)
+        // Centro (0,0), Radio V0
+        const radiusVal = v0 * this.scale;
+        
+        // Círculo Base Azul
+        this.dataLayer.add(new Konva.Circle({
+            x: 0,
+            y: 0,
+            radius: radiusVal,
+            stroke: '#3b82f6', // blue-500
+            strokeWidth: 2,
+            opacity: 0.5,
+            dash: [10, 5]
+        }));
+
+        // Etiqueta Base
+        this.dataLayer.add(new Konva.Text({
+            x: radiusVal + 5,
+            y: 5,
+            text: `Base r=${v0}`,
+            fill: '#3b82f6',
+            fontSize: 10
+        }));
+
+
+        // 1. Dibujar Círculos de Corridas
+        // CORRECCION: Centro en (V0, Angulo_ensayo). Radio = Amplitud_ensayo (Vi)
+        runs.forEach(run => {
+            // Calcular posición del centro en coordenadas cartesianas (V0 @ theta)
+            const rad = run.theta * Math.PI / 180;
+            const cx_cart = v0 * Math.cos(rad); // Center is V0
+            const cy_cart = v0 * Math.sin(rad);
+
+            // Convertir a coordenadas de Canvas
+            const cx_canvas = cx_cart * this.scale;
+            const cy_canvas = -cy_cart * this.scale;
+
+            const radius_canvas = run.r * this.scale; // Radio is Vi
+
+            // Dibujar el Círculo
+            const circle = new Konva.Circle({
+                x: cx_canvas,
+                y: cy_canvas,
+                radius: radius_canvas,
+                stroke: run.color,
+                strokeWidth: 2,
+                opacity: 0.8
+            });
+
+            // Dibujar el Centro del Círculo
+            const centerPoint = new Konva.Circle({
+                x: cx_canvas,
+                y: cy_canvas,
+                radius: 4,
+                fill: run.color
+            });
+            
+            // Dibujar Coordenadas del Centro
+            this.dataLayer.add(new Konva.Text({
+                x: cx_canvas + 8,
+                y: cy_canvas - 8,
+                text: `${run.color === '#22c55e' ? 'C1' : run.color === '#a855f7' ? 'C2' : 'C3'} (${v0}, ${run.theta}°)`,
+                fill: '#64748b', // slate-500
+                fontSize: 10,
+                fontFamily: 'monospace'
+            }));
+
+            this.dataLayer.add(circle);
+            this.dataLayer.add(centerPoint);
+        });
+
+        // 2. Dibujar Punto de Solución (P*)
+        if (solution) {
+            const px_canvas = solution.x * this.scale;
+            const py_canvas = -solution.y * this.scale;
+
+            // Punto
+            const solPoint = new Konva.Circle({
+                x: px_canvas,
+                y: py_canvas,
+                radius: 5,
+                fill: '#ffffff',
+                stroke: '#1e293b', // slate-800
+                strokeWidth: 2
+            });
+
+            // Etiqueta P*
+            const label = new Konva.Text({
+                x: px_canvas + 8,
+                y: py_canvas - 8,
+                text: `P* r=${solution.r.toFixed(3)}`,
+                fill: '#1e293b',
+                fontSize: 12,
+                fontStyle: 'bold',
+                fill: '#ffffff',
+                stroke: '#1e293b',
+                strokeWidth: 0.2
+            });
+
+            this.dataLayer.add(solPoint);
+            this.dataLayer.add(label);
+        }
+
+        this.dataLayer.draw();
+    }
+
+    /**
+     * Dibuja vectores desde el origen.
+     * @param {Array} runs - Array de vectores de corrida [{r, theta, color}, ...]
+     * @param {Object} resultant - Vector resultante {r, theta}
+     * @param {Object} opposite - Vector opuesto {r, theta}
+     */
+    drawVectors(runs, resultant, opposite) {
+        // Guardar estado
+        this.lastVectorsData = [runs, resultant, opposite];
+
+        this.dataLayer.destroyChildren();
+
+        // Helper para dibujar flecha
+        const drawArrow = (r, theta, color, width = 2, dash = []) => {
+            const rad = theta * Math.PI / 180;
+            const x_cart = r * Math.cos(rad);
+            const y_cart = r * Math.sin(rad);
+
+            const x_canvas = x_cart * this.scale;
+            const y_canvas = -y_cart * this.scale;
+
+            const arrow = new Konva.Arrow({
+                points: [0, 0, x_canvas, y_canvas],
+                pointerLength: 10,
+                pointerWidth: 10,
+                fill: color,
+                stroke: color,
+                strokeWidth: width,
+                dash: dash
+            });
+
+            this.dataLayer.add(arrow);
+        };
+
+        // 1. Dibujar vectores de corrida
+        runs.forEach(run => {
+            drawArrow(run.r, run.theta, run.color);
+        });
+
+        // 2. Dibujar Resultante (Rojo)
+        if (resultant) {
+            drawArrow(resultant.r, resultant.theta, '#ef4444', 3); // red-500
+        }
+
+        // 3. Dibujar Opuesto (Gris visible)
+        if (opposite) {
+             const rad = opposite.theta * Math.PI / 180;
+             const x = (opposite.r * this.scale) * Math.cos(rad);
+             const y = -(opposite.r * this.scale) * Math.sin(rad);
+             
+             const arrow = new Konva.Arrow({
+                points: [0, 0, x, y],
+                pointerLength: 12,
+                pointerWidth: 12,
+                fill: '#94a3b8', // slate-400
+                stroke: '#475569', // slate-600
+                strokeWidth: 2,
+                dash: [5, 2]
+            });
+            this.dataLayer.add(arrow);
+        }
+
+        this.dataLayer.draw();
     }
 }
