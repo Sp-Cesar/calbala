@@ -1,7 +1,13 @@
-<div class="relative w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
+<div class="relative w-full h-screen bg-white flex flex-col overflow-hidden">
     
+    <!-- Diagonal Cross Grid Background -->
+    <div 
+        class="absolute inset-0 z-0 pointer-events-none"
+        style="background-image: linear-gradient(45deg, transparent 49%, #e5e7eb 49%, #e5e7eb 51%, transparent 51%), linear-gradient(-45deg, transparent 49%, #e5e7eb 49%, #e5e7eb 51%, transparent 51%); background-size: 40px 40px;"
+    ></div>
+
     <!-- Main Content Area with Grid -->
-    <div class="flex-1 p-4 overflow-y-auto">
+    <div class="flex-1 p-4 overflow-y-auto relative z-10">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
             
             <!-- Card 1: Gráfico Polar - Trilateración -->
@@ -37,7 +43,7 @@
                         </div>
                     </div>
                     <div class="text-[10px] text-gray-400 text-center">
-                        Convención: ángulo crece antihorario.
+                        Convención: ángulo crece antihorario. Se muestran etiquetas de magnitud (anillos) y fase (marcas angulares).
                     </div>
                 </div>
             </div>
@@ -86,12 +92,33 @@
                         </div>
                     </div>
                     <div class="text-[10px] text-gray-400 text-center leading-tight">
-                        Vectores rojo (Resultante) y blanco/gris (Opuesto).
+                        Vectores desde el centro hacia los centros de las 3 corridas. El vector rojo representa la resultante y el blanco el opuesto (180°).
                     </div>
                 </div>
             </div>
 
         </div>
+    </div>
+
+    <!-- Floating Navigation Toolbar -->
+    <div class="fixed top-20 right-4 z-30 flex flex-col gap-3">
+        <!-- Home Button -->
+        <button id="btn-home" class="w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-blue-600 border border-gray-200 transition-all hover:scale-110 active:scale-95 group relative" title="Inicio">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+            </svg>
+            <!-- Tooltip -->
+            <span class="absolute right-12 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Inicio</span>
+        </button>
+
+        <!-- History Button -->
+        <button class="w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-blue-600 border border-gray-200 transition-all hover:scale-110 active:scale-95 group relative" title="Historial">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+            </svg>
+            <!-- Tooltip -->
+            <span class="absolute right-12 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Historial</span>
+        </button>
     </div>
 
     <!-- Sidebar Partial -->

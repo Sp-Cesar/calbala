@@ -487,6 +487,18 @@ export default class PolarCanvasController {
     }
 
     /**
+     * Resetea la vista para ajustar todo el contenido (Auto-Fit).
+     * Usa los últimos datos dibujados.
+     */
+    fitContent() {
+        if (this.lastTrilaterationData) {
+            this.drawTrilateration(...this.lastTrilaterationData, true);
+        } else if (this.lastVectorsData) {
+            this.drawVectors(...this.lastVectorsData, true);
+        }
+    }
+
+    /**
      * Dibuja vectores desde el origen con etiquetas de coordenadas.
      * @param {Array} runs - Array de vectores de corrida 
      * @param {Object} resultant - Vector resultante

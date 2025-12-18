@@ -10,6 +10,14 @@ export default class AppController {
         if (btnDraw) {
             btnDraw.addEventListener('click', () => this.calculateAndDraw());
         }
+
+        const btnHome = document.getElementById('btn-home');
+        if (btnHome) {
+            btnHome.addEventListener('click', () => {
+                if (window.trilaterationGraph) window.trilaterationGraph.fitContent();
+                if (window.vectorsGraph) window.vectorsGraph.fitContent();
+            });
+        }
     }
 
     getInputs() {
