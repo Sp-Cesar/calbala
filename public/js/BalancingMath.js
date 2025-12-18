@@ -1,91 +1,95 @@
 export default class BalancingMath {
+
+    // --- A. Utilidades Internas ---
+
+    static degToRad(deg) {
+        return deg * Math.PI / 180;
+    }
+
+    static radToDeg(rad) {
+        return rad * 180 / Math.PI;
+    }
+
+    static normalizeAngle(deg) {
+        let d = deg % 360;
+        if (d < 0) d += 360;
+        return d;
+    }
+
     /**
-     * Solves the intersection of 3 circles using gradient descent optimization.
-     * Method B: Centers at (Vi, angle_i), Radius V0.
-     * @param {number} v0 - Initial amplitude (Radius for all circles)
+     * Solves the intersection of 3 circles using linear system solution.
+     * Method A (User Spec): Centers at (V0, angle_i), Radius Vi.
+     * @param {number} v0 - Initial amplitude (Radius for Center placement)
      * @param {Array} runs - Array of run objects [{ r: number, theta: number }]
-     * @returns {Object} { r, theta, x, y, error }
+     * @returns {Object} { r, theta, x, y, rmsError }
      */
     static solveIntersection(v0, runs) {
-        // Runs are expected to be in degrees.
-        // Convert runs to Cartesian centers for the circles.
+        // 1. Definir Centros y Radios según especificación
+        // Centro (cx, cy) = (V0 * cos(theta), V0 * sin(theta))
+        // Radio (ri) = run.amplitude
         
-        // CORRECCION (User Spec): 
-        // Centro del círculo nace en el Radio Inicial (V0) al ángulo del ensayo.
-        // El Radio del círculo es la Amplitud del ensayo (Vi).
-        
-        const centers = runs.map(run => {
-            const rad = run.theta * Math.PI / 180;
+        const circles = runs.map(run => {
+            const rad = this.degToRad(run.theta);
             return {
-                x: v0 * Math.cos(rad), // Center is at V0
-                y: v0 * Math.sin(rad),
-                r: run.r // Radius is the Run Amplitude
+                cx: v0 * Math.cos(rad),
+                cy: v0 * Math.sin(rad),
+                ri: run.r
             };
         });
 
-        // Optimization: Find point P(x,y) that is exactly distance R from all centers.
-        // We minimize the sum of squared errors: sum((dist(P, Ci) - R)^2)
+        const [c1, c2, c3] = circles;
+
+        // 3. Resolver Sistema Lineal
+        // Se buscan la intersección de las "líneas radicales" de los pares de círculos.
+        // Ecuación general: 2x(Cx1 - Cx2) + 2y(Cy1 - Cy2) = (r2^2 - r1^2) + (Cx1^2 - Cx2^2) + (Cy1^2 - Cy2^2)
         
-        let x = 0, y = 0;
-        const learningRate = 0.01;
-        const iterations = 10000;
-        let finalError = 0;
+        // Coeficientes para par 1-2
+        const A1 = 2 * (c1.cx - c2.cx);
+        const B1 = 2 * (c1.cy - c2.cy);
+        const Val1 = (c2.ri ** 2 - c1.ri ** 2) + (c1.cx ** 2 - c2.cx ** 2) + (c1.cy ** 2 - c2.cy ** 2);
 
-        for (let i = 0; i < iterations; i++) {
-            let gradX = 0;
-            let gradY = 0;
-            let currentErrorSum = 0;
+        // Coeficientes para par 1-3
+        const A2 = 2 * (c1.cx - c3.cx);
+        const B2 = 2 * (c1.cy - c3.cy);
+        const Val2 = (c3.ri ** 2 - c1.ri ** 2) + (c1.cx ** 2 - c3.cx ** 2) + (c1.cy ** 2 - c3.cy ** 2);
 
-            for (const c of centers) {
-                const dx = x - c.x;
-                const dy = y - c.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                // Error = actual distance - target radius
-                const error = dist - c.r;
-                currentErrorSum += Math.abs(error);
+        // Determinante
+        const D = A1 * B2 - A2 * B1;
 
-                if (dist > 0.0001) {
-                    // Gradient of (dist - R)^2
-                    // d/dx = 2 * (dist - R) * (x - cx) / dist
-                    // We sum the gradients
-                    gradX += 2 * error * dx / dist;
-                    gradY += 2 * error * dy / dist;
-                }
-            }
-            
-            finalError = currentErrorSum;
-
-            // Move in opposite direction of gradient
-            x -= learningRate * gradX;
-            y -= learningRate * gradY;
-
-            // Stop if gradient is very small
-            if (Math.sqrt(gradX * gradX + gradY * gradY) < 0.00001) break;
+        if (Math.abs(D) < 1e-9) {
+            console.error("Sistema degenerado: Círculos colineales o concéntricos.");
+            return { x: 0, y: 0, r: 0, theta: 0, error: 0 };
         }
 
-        const r_sol = Math.sqrt(x * x + y * y);
-        let theta_sol_deg = Math.atan2(y, x) * 180 / Math.PI;
-        if (theta_sol_deg < 0) theta_sol_deg += 360;
+        // Solución P(x, y)
+        const Px = (Val1 * B2 - Val2 * B1) / D;
+        const Py = (A1 * Val2 - A2 * Val1) / D;
+
+        // Magnitud y Fase Estimada
+        const r_est = Math.sqrt(Px * Px + Py * Py);
+        const theta_est = this.normalizeAngle(this.radToDeg(Math.atan2(Py, Px)));
+
+        // 6. Cálculo Error RMS
+        // RMS = sqrt( sum((dist(P, Ci) - ri)^2) / 3 )
+        let sumSqError = 0;
+        circles.forEach(c => {
+            const dist = Math.sqrt((Px - c.cx) ** 2 + (Py - c.cy) ** 2);
+            const err = dist - c.ri;
+            sumSqError += err * err;
+        });
+        const rmsError = Math.sqrt(sumSqError / 3);
 
         return {
-            x: x,
-            y: y,
-            r: r_sol,
-            theta: theta_sol_deg,
-            error: finalError
+            x: Px,
+            y: Py,
+            r: r_est,
+            theta: theta_est,
+            error: rmsError
         };
     }
 
     /**
      * Calculates vectors for the vector diagram.
-     * V = Run Vector
-     * Resultant = Sum of all Run Vectors + Initial Vector?? 
-     * Actually, usually the vector graph shows the effect of trial weights.
-     * But based on the user image:
-     * We have V1, V2, V3 vectors.
-     * Resultant = V1 + V2 + V3 (Vector Sum).
-     * Opposite = -Resultant (180 deg shift).
      * @param {Array} runs 
      */
     static calculateVectors(runs) {
@@ -93,22 +97,20 @@ export default class BalancingMath {
         let sumY = 0;
 
         runs.forEach(run => {
-            const rad = run.theta * Math.PI / 180;
+            const rad = this.degToRad(run.theta);
             sumX += run.r * Math.cos(rad);
             sumY += run.r * Math.sin(rad);
         });
 
         const r_res = Math.sqrt(sumX * sumX + sumY * sumY);
-        let theta_res_deg = Math.atan2(sumY, sumX) * 180 / Math.PI;
-        if (theta_res_deg < 0) theta_res_deg += 360;
+        const theta_res = this.normalizeAngle(this.radToDeg(Math.atan2(sumY, sumX)));
 
-        // Opposite
-        let theta_opp_deg = theta_res_deg + 180;
-        if (theta_opp_deg >= 360) theta_opp_deg -= 360;
+        // Opposite (+180 deg)
+        const theta_opp = this.normalizeAngle(theta_res + 180);
 
         return {
-            resultant: { r: r_res, theta: theta_res_deg },
-            opposite: { r: r_res, theta: theta_opp_deg }
+            resultant: { r: r_res, theta: theta_res },
+            opposite: { r: r_res, theta: theta_opp }
         };
     }
 }

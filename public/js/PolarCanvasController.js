@@ -307,6 +307,12 @@ export default class PolarCanvasController {
      * @param {Array} runs - Array de corridas [{r, theta, color}, ...] que actuan como CENTROS
      * @param {Object} solution - Punto de solución {x, y, r, theta}
      */
+    /**
+     * Dibuja el gráfico de trilateración (círculos intersectando).
+     * @param {number} v0 - Radio de los círculos (Amplitud Original)
+     * @param {Array} runs - Array de corridas [{r, theta, color}, ...] que actuan como CENTROS
+     * @param {Object} solution - Punto de solución {x, y, r, theta}
+     */
     drawTrilateration(v0, runs, solution) {
         // Guardar estado para redibujado (Zoom/Resize)
         this.lastTrilaterationData = [v0, runs, solution];
@@ -314,7 +320,6 @@ export default class PolarCanvasController {
         this.dataLayer.destroyChildren(); // Limpiar gráfico anterior
 
         // 0. Dibujar Círculo Base (Amplitud Inicial)
-        // Centro (0,0), Radio V0
         const radiusVal = v0 * this.scale;
         
         // Círculo Base Azul
@@ -337,51 +342,43 @@ export default class PolarCanvasController {
             fontSize: 10
         }));
 
-
         // 1. Dibujar Círculos de Corridas
-        // CORRECCION: Centro en (V0, Angulo_ensayo). Radio = Amplitud_ensayo (Vi)
         runs.forEach(run => {
-            // Calcular posición del centro en coordenadas cartesianas (V0 @ theta)
             const rad = run.theta * Math.PI / 180;
-            const cx_cart = v0 * Math.cos(rad); // Center is V0
+            const cx_cart = v0 * Math.cos(rad);
             const cy_cart = v0 * Math.sin(rad);
 
-            // Convertir a coordenadas de Canvas
             const cx_canvas = cx_cart * this.scale;
             const cy_canvas = -cy_cart * this.scale;
+            const radius_canvas = run.r * this.scale;
 
-            const radius_canvas = run.r * this.scale; // Radio is Vi
-
-            // Dibujar el Círculo
-            const circle = new Konva.Circle({
+            // Círculo
+            this.dataLayer.add(new Konva.Circle({
                 x: cx_canvas,
                 y: cy_canvas,
                 radius: radius_canvas,
                 stroke: run.color,
                 strokeWidth: 2,
                 opacity: 0.8
-            });
+            }));
 
-            // Dibujar el Centro del Círculo
-            const centerPoint = new Konva.Circle({
+            // Centro
+            this.dataLayer.add(new Konva.Circle({
                 x: cx_canvas,
                 y: cy_canvas,
                 radius: 4,
                 fill: run.color
-            });
+            }));
             
-            // Dibujar Coordenadas del Centro
+            // Etiqueta Centro
             this.dataLayer.add(new Konva.Text({
                 x: cx_canvas + 8,
                 y: cy_canvas - 8,
                 text: `${run.color === '#22c55e' ? 'C1' : run.color === '#a855f7' ? 'C2' : 'C3'} (${v0}, ${run.theta}°)`,
-                fill: '#64748b', // slate-500
+                fill: '#64748b',
                 fontSize: 10,
                 fontFamily: 'monospace'
             }));
-
-            this.dataLayer.add(circle);
-            this.dataLayer.add(centerPoint);
         });
 
         // 2. Dibujar Punto de Solución (P*)
@@ -389,30 +386,47 @@ export default class PolarCanvasController {
             const px_canvas = solution.x * this.scale;
             const py_canvas = -solution.y * this.scale;
 
+            // Linea de referencia
+            this.dataLayer.add(new Konva.Line({
+                points: [0, 0, px_canvas, py_canvas],
+                stroke: '#1e293b',
+                strokeWidth: 1,
+                dash: [4, 4]
+            }));
+
             // Punto
-            const solPoint = new Konva.Circle({
+            this.dataLayer.add(new Konva.Circle({
                 x: px_canvas,
                 y: py_canvas,
                 radius: 5,
                 fill: '#ffffff',
-                stroke: '#1e293b', // slate-800
+                stroke: '#1e293b',
                 strokeWidth: 2
-            });
+            }));
 
-            // Etiqueta P*
-            const label = new Konva.Text({
+            // Etiqueta P* High Contrast
+            const label = new Konva.Label({
                 x: px_canvas + 8,
                 y: py_canvas - 8,
-                text: `P* r=${solution.r.toFixed(3)}`,
-                fill: '#1e293b',
-                fontSize: 12,
-                fontStyle: 'bold',
-                fill: '#ffffff',
-                stroke: '#1e293b',
-                strokeWidth: 0.2
+                opacity: 0.9
             });
+            
+            label.add(new Konva.Tag({
+                fill: 'white',
+                cornerRadius: 2,
+                stroke: '#cbd5e1',
+                strokeWidth: 1
+            }));
+            
+            label.add(new Konva.Text({
+                text: `P* r=${solution.r.toFixed(3)}`,
+                fontFamily: 'Arial',
+                fontSize: 11,
+                padding: 4,
+                fill: 'black',
+                fontStyle: 'bold'
+            }));
 
-            this.dataLayer.add(solPoint);
             this.dataLayer.add(label);
         }
 
@@ -420,19 +434,14 @@ export default class PolarCanvasController {
     }
 
     /**
-     * Dibuja vectores desde el origen.
-     * @param {Array} runs - Array de vectores de corrida [{r, theta, color}, ...]
-     * @param {Object} resultant - Vector resultante {r, theta}
-     * @param {Object} opposite - Vector opuesto {r, theta}
+     * Dibuja vectores desde el origen con etiquetas de coordenadas.
      */
     drawVectors(runs, resultant, opposite) {
-        // Guardar estado
         this.lastVectorsData = [runs, resultant, opposite];
-
         this.dataLayer.destroyChildren();
 
-        // Helper para dibujar flecha
-        const drawArrow = (r, theta, color, width = 2, dash = []) => {
+        // Helper
+        const drawArrow = (r, theta, color, width = 2, dash = [], prefix='') => {
             const rad = theta * Math.PI / 180;
             const x_cart = r * Math.cos(rad);
             const y_cart = r * Math.sin(rad);
@@ -440,7 +449,8 @@ export default class PolarCanvasController {
             const x_canvas = x_cart * this.scale;
             const y_canvas = -y_cart * this.scale;
 
-            const arrow = new Konva.Arrow({
+            // Flecha
+            this.dataLayer.add(new Konva.Arrow({
                 points: [0, 0, x_canvas, y_canvas],
                 pointerLength: 10,
                 pointerWidth: 10,
@@ -448,37 +458,73 @@ export default class PolarCanvasController {
                 stroke: color,
                 strokeWidth: width,
                 dash: dash
+            }));
+
+            // Etiqueta Coordenadas
+            const label = new Konva.Label({
+                x: x_canvas,
+                y: y_canvas,
+                opacity: 0.85
             });
 
-            this.dataLayer.add(arrow);
+            label.add(new Konva.Tag({
+                fill: 'white',
+                stroke: color,
+                strokeWidth: 1,
+                cornerRadius: 3
+            }));
+
+            label.add(new Konva.Text({
+                text: `${prefix}(${r.toFixed(2)}, ${theta.toFixed(1)}°)`,
+                fontFamily: 'Arial',
+                fontSize: 10,
+                padding: 3,
+                fill: 'black'
+            }));
+
+            this.dataLayer.add(label);
         };
 
-        // 1. Dibujar vectores de corrida
-        runs.forEach(run => {
-            drawArrow(run.r, run.theta, run.color);
+        // 1. Vectores de corrida
+        runs.forEach((run, i) => {
+            const name = run.color === '#22c55e' ? 'V1' : run.color === '#a855f7' ? 'V2' : 'V3';
+            drawArrow(run.r, run.theta, run.color, 2, [], name);
         });
 
-        // 2. Dibujar Resultante (Rojo)
+        // 2. Resultante
         if (resultant) {
-            drawArrow(resultant.r, resultant.theta, '#ef4444', 3); // red-500
+            drawArrow(resultant.r, resultant.theta, '#ef4444', 3, [], 'Res');
         }
 
-        // 3. Dibujar Opuesto (Gris visible)
+        // 3. Opuesto
         if (opposite) {
              const rad = opposite.theta * Math.PI / 180;
              const x = (opposite.r * this.scale) * Math.cos(rad);
              const y = -(opposite.r * this.scale) * Math.sin(rad);
              
-             const arrow = new Konva.Arrow({
+             // Flecha
+             this.dataLayer.add(new Konva.Arrow({
                 points: [0, 0, x, y],
                 pointerLength: 12,
                 pointerWidth: 12,
-                fill: '#94a3b8', // slate-400
-                stroke: '#475569', // slate-600
+                fill: '#94a3b8',
+                stroke: '#475569',
                 strokeWidth: 2,
                 dash: [5, 2]
+            }));
+
+            // Etiqueta Opuesto
+            const label = new Konva.Label({
+                x: x,
+                y: y,
+                opacity: 0.9
             });
-            this.dataLayer.add(arrow);
+            label.add(new Konva.Tag({ fill: '#f1f5f9', stroke: '#475569', strokeWidth: 1, cornerRadius: 2 }));
+            label.add(new Konva.Text({
+                 text: `Opuesto (${opposite.r.toFixed(2)}, ${opposite.theta.toFixed(1)}°)`,
+                 fontSize: 10, padding: 3, fill: '#334155'
+            }));
+            this.dataLayer.add(label);
         }
 
         this.dataLayer.draw();
