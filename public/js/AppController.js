@@ -42,10 +42,10 @@ export default class AppController {
 
         // 4. Draw Graphs
         if (window.trilaterationGraph) {
-            window.trilaterationGraph.drawTrilateration(inputs.v0, inputs.runs, solution);
+            window.trilaterationGraph.drawTrilateration(inputs.v0, inputs.runs, solution, true);
         }
         if (window.vectorsGraph) {
-            window.vectorsGraph.drawVectors(inputs.runs, vectors.resultant, vectors.opposite);
+            window.vectorsGraph.drawVectors(inputs.runs, vectors.resultant, vectors.opposite, true);
         }
     }
 

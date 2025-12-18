@@ -303,23 +303,75 @@ export default class PolarCanvasController {
      */
     /**
      * Dibuja el gráfico de trilateración (círculos intersectando).
-     * @param {number} v0 - Radio de los círculos (Amplitud Original)
-     * @param {Array} runs - Array de corridas [{r, theta, color}, ...] que actuan como CENTROS
-     * @param {Object} solution - Punto de solución {x, y, r, theta}
+     * Ajusta el zoom (scale) para mostrar un radio determinado dentro de la vista.
+     * @param {number} maxRadius - Radio máximo que debe ser visible.
      */
+    fitToRadius(maxRadius) {
+        if (!maxRadius || maxRadius <= 0) return;
+
+        // Dimensiones del contenedor
+        const w = this.stage.width();
+        const h = this.stage.height();
+        
+        // El menor lado define la restricción (para mantener ratio 1:1)
+        const minDimension = Math.min(w, h);
+        
+        // Queremos que maxRadius ocupe, digamos, el 45% del ancho/alto (dejando 10% margen total)
+        // radio en pixeles = maxRadius * scale
+        // radio en pixeles = minDimension / 2 * 0.9
+        // maxRadius * scale = minDimension * 0.45
+        
+        const targetScale = (minDimension * 0.45) / maxRadius;
+        
+        // Aplicar nuevo scale
+        this.scale = targetScale;
+        
+        // Opcional: Centrar vista (si se hubiera movido)
+        this.gridLayer.x(w / 2);
+        this.gridLayer.y(h / 2);
+        this.dataLayer.x(w / 2);
+        this.dataLayer.y(h / 2);
+        
+        // Redibujar grid con nueva escala (los datos se dibujarán a continuación)
+        this.drawGrid();
+    }
+
     /**
      * Dibuja el gráfico de trilateración (círculos intersectando).
      * @param {number} v0 - Radio de los círculos (Amplitud Original)
      * @param {Array} runs - Array de corridas [{r, theta, color}, ...] que actuan como CENTROS
      * @param {Object} solution - Punto de solución {x, y, r, theta}
+     * @param {boolean} autoFit - Si es true, ajusta el zoom automáticamente.
      */
-    drawTrilateration(v0, runs, solution) {
+    drawTrilateration(v0, runs, solution, autoFit = false) {
         // Guardar estado para redibujado (Zoom/Resize)
+        // NOTA: No guardamos autoFit, para que redraw() (zoom manual) no resetee la vista.
         this.lastTrilaterationData = [v0, runs, solution];
+
+        // AUTO-FIT
+        if (autoFit) {
+            // Calcular extensión máxima
+            // Extensión = V0 (distancia al centro) + Vi (radio del círculo)
+            let maxR = 0;
+            runs.forEach(run => {
+                const extent = v0 + run.r;
+                if (extent > maxR) maxR = extent;
+            });
+            // Considerar también P* si existe
+            if (solution && solution.r > maxR) {
+                maxR = solution.r;
+            }
+            
+            // Si v0 es muy grande y runs pequeños, al menos mostrar v0
+            if (v0 > maxR) maxR = v0;
+
+            this.fitToRadius(maxR);
+        }
 
         this.dataLayer.destroyChildren(); // Limpiar gráfico anterior
 
         // 0. Dibujar Círculo Base (Amplitud Inicial)
+        // Centro (0,0), Radio V0
         const radiusVal = v0 * this.scale;
         
         // Círculo Base Azul
@@ -350,7 +402,8 @@ export default class PolarCanvasController {
 
             const cx_canvas = cx_cart * this.scale;
             const cy_canvas = -cy_cart * this.scale;
-            const radius_canvas = run.r * this.scale;
+
+            const radius_canvas = run.r * this.scale; // Radio is Vi
 
             // Círculo
             this.dataLayer.add(new Konva.Circle({
@@ -375,7 +428,7 @@ export default class PolarCanvasController {
                 x: cx_canvas + 8,
                 y: cy_canvas - 8,
                 text: `${run.color === '#22c55e' ? 'C1' : run.color === '#a855f7' ? 'C2' : 'C3'} (${v0}, ${run.theta}°)`,
-                fill: '#64748b',
+                fill: '#64748b', // slate-500
                 fontSize: 10,
                 fontFamily: 'monospace'
             }));
@@ -400,7 +453,7 @@ export default class PolarCanvasController {
                 y: py_canvas,
                 radius: 5,
                 fill: '#ffffff',
-                stroke: '#1e293b',
+                stroke: '#1e293b', // slate-800
                 strokeWidth: 2
             }));
 
@@ -435,9 +488,26 @@ export default class PolarCanvasController {
 
     /**
      * Dibuja vectores desde el origen con etiquetas de coordenadas.
+     * @param {Array} runs - Array de vectores de corrida 
+     * @param {Object} resultant - Vector resultante
+     * @param {Object} opposite - Vector opuesto
+     * @param {boolean} autoFit - Auto scalling
      */
-    drawVectors(runs, resultant, opposite) {
+    drawVectors(runs, resultant, opposite, autoFit = false) {
+        // Guardar estado
         this.lastVectorsData = [runs, resultant, opposite];
+        
+        // AUTO-FIT
+        if (autoFit) {
+            // Max extent de vectores
+            let maxR = 0;
+            runs.forEach(v => { if (v.r > maxR) maxR = v.r; });
+            if (resultant && resultant.r > maxR) maxR = resultant.r;
+            if (opposite && opposite.r > maxR) maxR = opposite.r;
+
+            this.fitToRadius(maxR);
+        }
+
         this.dataLayer.destroyChildren();
 
         // Helper
